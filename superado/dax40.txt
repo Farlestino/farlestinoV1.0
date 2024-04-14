@@ -1,0 +1,275 @@
+//+------------------------------------------------------------------+
+//|                                                       DAX-40.mq5 |
+//|                                  Copyright 2024, MetaQuotes Ltd. |
+//|                                                                  |
+//+------------------------------------------------------------------+
+//+------------------------------------------------------------------+
+//| Informacion del Asesor                                 
+//+------------------------------------------------------------------+
+
+
+
+
+
+#property copyright "Copyright 2024, MetaQuotes Ltd."
+#property  description "Asesor experto que aplica la estrategia dax 40 v 1.0, esta consiste en tres señales, en esta version la suma de dos señales seran suficientes para entrar, una señal sera la tendencia que entregue el cruce de dos medias moviles, la segunda señal sera una diferencia menor o igual de 150 puntos entre un 0 o un 00 con el 30, 50, 60 de fibonacci, la tercera señal sera un fibonacci 30,50,60 que coincida con la tendencia del cruce de las medias moviles"
+#property link      ""
+#property version   "1.00"
+
+
+
+//+------------------------------------------------------------------+
+//| Notas del Asesor                                
+//+------------------------------------------------------------------+
+//
+//+------------------------------------------------------------------+
+//| AE Enumeraciones                                 
+//+------------------------------------------------------------------+
+
+
+//+------------------------------------------------------------------+
+//| Variables Input y globales                                
+//+------------------------------------------------------------------+
+
+sinput group                                          "### AJUSTES GENERALES ###"
+input ulong                                            MagicNumber                        = 101;
+
+sinput group                                          "### AJUSTES MEDIA MOVIL ###"
+input int                                             PeriodoMALenta                      = 21; 
+input int                                             PeriodoMARapida                     = 10;
+input ENUM_MA_METHOD                                  MetodoMALenta                       = MODE_EMA;
+input ENUM_MA_METHOD                                  MetodoMARapida                      = MODE_EMA;
+input int                                             ShiftMALenta                        = 0;
+input int                                             ShiftMARapida                       = 0;
+input ENUM_APPLIED_PRICE                              PrecioMALenta                       = PRICE_CLOSE;
+input ENUM_APPLIED_PRICE                              PrecioMARapida                      = PRICE_HIGH;
+
+sinput group "### GESTION MONETARIA ###"
+input double                                          VolumenFijo                         = 0.1;
+
+sinput group "### GESTION DE POSICIONES ###"
+input ushort                                          SLPuntosFijos                       = 0;
+input ushort                                          SLPuntosFijosMA                     = 0;
+input ushort                                          TPPuntosFijos                       = 0;
+input ushort                                          TSPuntosFijos                       = 0;
+input ushort                                          BEPuntosFijos                       = 0;
+
+sinput group "### GESTION DE variables globales ###"
+datetime glTiempoBarraApertura;
+int ManejadorMARapida;
+int ManejadorMALenta;
+int SumSignal;
+
+//+------------------------------------------------------------------+
+//| Procesador de eventos                                
+//+------------------------------------------------------------------+
+
+
+
+
+
+
+
+
+int OnInit()
+{
+   glTiempoBarraApertura = D'1971.01.01 00:00';
+   
+//inicializando los manejadores de las MA
+
+   ManejadorMALenta = MA_Init(PeriodoMALenta,ShiftMALenta,MetodoMALenta,PrecioMALenta);
+   ManejadorMARapida = MA_Init(PeriodoMARapida,ShiftMARapida,MetodoMARapida,PrecioMARapida);
+
+// manejo de errores, si hay algun error con la inizalizacion de las MA que retorne un error que detenga la ejecucion del bot  
+   if(ManejadorMALenta == -1 || ManejadorMARapida == -1)
+     {
+      return (INIT_FAILED);
+     }// if
+      else
+         {
+          return (INIT_SUCCEEDED);
+         }// else
+   SumSignal = 0;
+   return(INIT_SUCCEEDED);       
+   
+}//oninit
+
+void OnDeinit(const int reason)
+{
+
+   Print("Asesor Eliminado");
+   
+}//ondeinit
+
+void OnTick()
+{
+         //------------------------//
+         // control de nueva barra //
+         //------------------------//
+
+   bool nuevaBarra = false;
+   
+// comprobacion de nueva barra
+   if(glTiempoBarraApertura != iTime(_Symbol,PERIOD_CURRENT,0))
+     {
+         nuevaBarra = true;  
+         glTiempoBarraApertura = iTime(_Symbol,PERIOD_CURRENT,0); 
+            
+     }//if  
+   if(nuevaBarra == true)
+     {
+     
+         //------------------------//
+         // Precio e Inicadores    //
+         //------------------------//
+// ejecutando funcion que llama el valor del cierre de la barra indicada como parametro
+           
+   double cierre2 = Close(2);
+   Print("barra 2: ", cierre2); 
+       
+// media movil MA
+
+   double MALenta1= ma(ManejadorMALenta,1); 
+   double MARapida1= ma(ManejadorMARapida, 1);
+   Print("MAlenta1: ",MALenta1, " MArapida1: ",MARapida1);
+
+        
+         
+         
+         
+         
+         
+         //------------------------//
+         // cierre de posiciones    //
+         //------------------------//
+         
+         
+         
+         //------------------------//
+         // colocacion de ordenes  //
+         //------------------------//
+// controlando si el cruce de medias moviles esta en largo o en corto //
+   string MASignal = signal_Cruce_MA(MALenta1, MARapida1);
+  
+   
+   if(MASignal == "LARGO")
+     {
+      Print("largo");
+     }// if
+   if(MASignal  == "CORTO")
+     {
+      Print("corto");
+     }//if      
+         
+         
+         //------------------------//
+         // gestion de posiciones  //
+         //------------------------//  
+     
+     
+      
+}//if
+
+
+
+   
+}//ontick
+
+
+
+
+
+//+------------------------------------------------------------------+
+//| Funciones                                 
+//+------------------------------------------------------------------+
+
+//+----------------------------- FUNCIONES DEL PRECIO-------------------------------------+
+// creamos una funcion para crear un objeto que almacene en un array la informacion de cada barra
+double Close (int pShift)
+{
+// la clase mqlrates genera objetos con la informacion de cada barra  
+   MqlRates barra [];
+// se convierte nuestra array barra en forma serial, para asi almacenar los datos de manera serial, siendo 0 la barra en curso
+   ArraySetAsSeries(barra, true);
+// añadimos la informacion del servido a nuestro array barra, desde la barra 0 hasta la barra 2
+   CopyRates(_Symbol,PERIOD_CURRENT,0,3,barra);
+// retornamos el precio de cierre con el parametro pshift, el cual seria la posicion de la barra
+   double precioCierre = barra[pShift].close; 
+// normalizando precio
+   precioCierre = NormalizeDouble(precioCierre,_Digits);
+   return precioCierre;
+   
+
+
+}//F
+
+//+----------------------------- FUNCIONES DE LA MEDIA MOVIL-------------------------------------+
+
+//************************************************//
+// funcion para inizializar el manejador de las MA
+//************************************************//
+
+   int MA_Init(int pPeriodoMA, int pShiftMA, ENUM_MA_METHOD pMetodoMA, ENUM_APPLIED_PRICE pPrecioMA)
+   {
+// reseteando last error a 0, lo hacemos para resetear los errores de tal manera que si esta funcion genera error podremos retornar el error actual
+   ResetLastError();
+
+// el manejador es un identificador unico para el indicador, se utiliza para todas las acciones relacionadas con este, como obtener datos o eliminarlo   
+   int Manejador = iMA(_Symbol, PERIOD_CURRENT, pPeriodoMA, pShiftMA, pMetodoMA, pPrecioMA);
+
+// comprobacion de errores
+   if(Manejador == INVALID_HANDLE)
+     {
+      return -1;
+      Print("ha habido un error creando el manejador del indicador de la media movil: ", GetLastError() );
+     }// if  
+      
+   Print("el manejador del indicador MA se ha creado con exito");
+   return Manejador;
+    }//f
+    
+ //****************************************************//   
+ // funcion para acceder a los datos de la media movil
+ //****************************************************//
+ 
+   double ma(int pManejadorMA, int pShift)
+   {
+ // reseteando last error a 0
+   ResetLastError();
+ // creando array que llenaremos con los precios del indicador
+   double ma[];
+ // lo convertimos en array serial
+   ArraySetAsSeries(ma,true);
+ // llenamos los datos del array con la informacion del servidor, vamos a llenar solo las ultimas tres velas
+ // se usa la funcion del mql5 llamada copy buffer la cual nos retorna la informacion del indicador, el primer parametro es el manejador del indicador
+   bool resultado = CopyBuffer(pManejadorMA, 0, 0, 3, ma);
+ // comprobacion de errores ya que resultado dara verdadero de ser exitoso o falso de no serlo
+   if(resultado == false)
+     {
+      Print("error al copiar datos del indicador MA", GetLastError());
+     }//i
+// preguntamos por el valor del indicador almacenado en pshift
+   double valorMA= ma[pShift];
+//normalizamos el valor de valorMA
+   valorMA = NormalizeDouble(valorMA,_Digits);
+// retornamos
+   return valorMA;
+   }//f
+   
+  //*************************************************************************//   
+ // funcion para acceder indicar si el cruce de MA esta en largo o en corto
+ //**************************************************************************//
+ 
+   string signal_Cruce_MA(double pMALenta, double pMARapida) {
+   string resultado = "";
+   if(pMARapida > pMALenta)
+   {
+    resultado = "LARGO";
+   }
+   if(pMARapida < pMALenta)
+     {
+      resultado = "CORTO";
+     }  
+   return resultado; 
+ 
+ }//f
